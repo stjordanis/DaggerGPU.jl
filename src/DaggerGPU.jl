@@ -3,10 +3,6 @@ module DaggerGPU
 using Dagger, Requires, Adapt
 using Distributed
 using KernelAbstractions
-import KernelAbstractions: Kernel
-
-# CPU can run KA kernels
-Dagger.execute!(proc::ThreadProc, func::Kernel, args...) = func(args...)
 
 macro gpuproc(PROC, T)
     quote
@@ -20,10 +16,6 @@ macro gpuproc(PROC, T)
         # Adapt to/from the appropriate type
         Dagger.move(from_proc::OSProc, to_proc::$PROC, x) = adapt($T, x)
         Dagger.move(from_proc::$PROC, to_proc::OSProc, x) = adapt(Array, x)
-
-        # We assume GPUs can run KA kernels
-        Dagger.iscompatible_func(proc::$PROC, opts, f::Kernel) = true
-        Dagger.execute!(proc::$PROC, func::Kernel, args...) = func(args...)
     end
 end
 
@@ -31,6 +23,9 @@ processor(kind::Symbol) = processor(Val(kind))
 processor(::Val) = Dagger.ThreadProc
 cancompute(kind::Symbol) = cancompute(Val(kind))
 cancompute(::Val) = false
+
+kernel_backend() = kernel_backend(Dagger.thunk_processor())
+kernel_backend(::Dagger.ThreadProc) = CPU()
 
 function __init__()
     @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin

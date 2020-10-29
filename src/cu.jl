@@ -50,6 +50,8 @@ end
 processor(::Val{:CUDA}) = CuArrayDeviceProc
 cancompute(::Val{:CUDA}) = CUDA.has_cuda()
 # TODO: CuArraySMProc
+kernel_backend(::CuArrayDeviceProc) = CUDADevice()
+kernel_backend(::CuArraySMProc) = CUDADevice()
 
 if CUDA.has_cuda()
     for dev in devices()

@@ -12,6 +12,16 @@ function myfunc(X)
     X
 end
 
+@kernel function fill_kernel(A, x)
+    idx = @index(Global, Linear)
+    A[idx] = x
+end
+function fill_thunk(A, x)
+    k = fill_kernel(DaggerGPU.kernel_backend(), 8)
+    wait(k(A,x))
+    A
+end
+
 end
 
 function generate_thunks()
@@ -19,12 +29,15 @@ function generate_thunks()
     delayed((xs...)->[sum(xs)])(as...)
 end
 
-@kernel function fill_kernel(A, x)
-    idx = @index(Global, Linear)
-    A[idx] = x
-end
-
 @test DaggerGPU.cancompute(:CUDA) || DaggerGPU.cancompute(:ROC)
+
+@testset "CPU" begin
+    @testset "KernelAbstractions" begin
+        A = rand(Float32, 8)
+        _A = collect(delayed(fill_thunk)(A, 2.3))
+        @test all(_A .== 2.3)
+    end
+end
 
 @testset "CUDA" begin
     if !DaggerGPU.cancompute(:CUDA)
@@ -43,9 +56,8 @@ end
         @testset "KernelAbstractions" begin
             cuproc = DaggerGPU.processor(:CUDA)
             opts = Dagger.Sch.ThunkOptions(;proctypes=[cuproc])
-            k = fill_kernel(CUDADevice(), 8)
-            A = CuArray{Float32}(undef, 8)
-            _A = collect(delayed(k)(A, 2.3); options=opts)
+            A = rand(Float32, 8)
+            _A = collect(delayed(fill_thunk)(A, 2.3); options=opts)
             @test all(_A .== 2.3)
         end
     end
@@ -70,9 +82,8 @@ end
         @testset "KernelAbstractions" begin
             rocproc = DaggerGPU.processor(:ROC)
             opts = Dagger.Sch.ThunkOptions(;proctypes=[rocproc])
-            k = fill_kernel(ROCDevice(), 8)
-            A = ROCArray{Float32}(undef, 8)
-            _A = collect(delayed(k)(A, 2.3); options=opts)
+            A = rand(Float32, 8)
+            _A = collect(delayed(fill_thunk)(A, 2.3); options=opts)
             @test all(_A .== 2.3)
         end
         =#
